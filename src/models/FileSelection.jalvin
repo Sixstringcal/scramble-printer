@@ -1,0 +1,10 @@
+data class FileSelection(
+    val name: String,
+    val displayName: String,
+    val selected: Boolean,
+    val copies: Int
+)
+
+fun createFileSelection(name: String, displayName: String, selected: Boolean, copies: Int): FileSelection {
+    return FileSelection(name = name, displayName = displayName, selected = selected, copies = copies)
+}

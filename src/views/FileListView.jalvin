@@ -1,0 +1,190 @@
+import @jalvin/runtime.collectAsState
+import @jalvin/runtime.mutableStateOf
+import @jalvin/runtime.LaunchedEffect
+import @jalvin/runtime.buildList
+import @jalvin/runtime.listOf
+import @jalvin/ui.Box
+import @jalvin/ui.Column
+import @jalvin/ui.Row
+import @jalvin/ui.Spacer
+import @jalvin/ui.Divider
+import @jalvin/ui.Card
+import @jalvin/ui.Text
+import @jalvin/ui.Button
+import @jalvin/ui.IconButton
+import @jalvin/ui.Checkbox
+import @jalvin/ui.Modifier
+import @jalvin/ui.Color
+import @jalvin/ui.TextStyle
+import src.viewmodels.PrintViewModel.PrintViewModel
+import src.models.FileSelection.FileSelection
+
+// ─── Paper size options ───────────────────────────────────────────────────────
+// listOf(id, label) — access with [0] and [1]
+
+val PAPER_SIZES = listOf(
+    listOf("letter", "Letter (US)"),
+    listOf("a4",     "A4"),
+    listOf("legal",  "Legal"),
+    listOf("a3",     "A3")
+)
+
+// ─── File row ─────────────────────────────────────────────────────────────────
+
+component fun FileSelectionRow(index: Int, sel: FileSelection, vm: PrintViewModel) {
+    return Card(
+        outlined = true,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12),
+            verticalAlignment = "center",
+            spacing = 12
+        ) {
+            Checkbox(
+                checked = sel.selected,
+                onCheckedChange = { checked -> vm.toggleSelection(index) })
+
+            Text(
+                text = sel.displayName,
+                style = TextStyle.bodyLarge,
+                color =
+                if (sel.selected)
+                { Color.OnSurface }
+                else
+                { Color.OnSurfaceVariant },
+                modifier = Modifier.flex(1))
+
+            // Copies stepper (only active when selected)
+            Row(verticalAlignment = "center", spacing = 4) {
+                Text(
+                    text = "Copies:",
+                    style = TextStyle.labelMedium,
+                    color = Color.OnSurfaceVariant)
+
+                IconButton(
+                    enabled = sel.selected && sel.copies > 1,
+                    onClick = { vm.decrementCopies(index) }) {
+                    Text(text = "−", style = TextStyle.titleMedium)
+                }
+
+                Text(
+                    text = sel.copies.toString(),
+                    style = TextStyle.bodyLarge,
+                    modifier = Modifier.width(28))
+
+                IconButton(
+                    enabled = sel.selected,
+                    onClick = { vm.incrementCopies(index) }) {
+                    Text(text = "+", style = TextStyle.titleMedium)
+                }
+            }
+        }
+    }
+}
+
+// ─── Main file list view ──────────────────────────────────────────────────────
+
+component fun FileListView(vm: PrintViewModel) {
+    console.log("[ScramblePrinter] FileListView rendering")
+    val folderName: String               = collectAsState(vm.folderName)
+    console.log("[ScramblePrinter] folderName ok:", folderName)
+    val fileSelections: List<FileSelection> = collectAsState(vm.fileSelections)
+    console.log("[ScramblePrinter] fileSelections ok, length:", fileSelections.length)
+    val paperSize: String                = collectAsState(vm.paperSize)
+    val isPrinting: Boolean              = collectAsState(vm.isPrinting)
+    val error: String?                   = collectAsState(vm.error)
+    console.log("[ScramblePrinter] all states collected")
+
+    // Trigger pattern for calling a suspend function from an onClick
+    val printTrigger = mutableStateOf(0)
+    LaunchedEffect(printTrigger.value, {
+            if (printTrigger.value > 0) {
+                vm.print()
+            }
+    })
+    console.log("[ScramblePrinter] LaunchedEffect ok")
+
+    // Manual any() — .any() is not a JS array method
+    var anySelected = false
+    for (sel in fileSelections) {
+        if (sel.selected) { anySelected = true }
+    }
+    console.log("[ScramblePrinter] anySelected:", anySelected)
+
+    // Pre-build index list for the DOM lambda
+    val indices = buildList({ builder ->
+            var i = 0
+            while (i < fileSelections.length) {
+                builder.add(i)
+                i = i + 1
+            }
+    })
+    console.log("[ScramblePrinter] indices built:", indices.length, "returning Column")
+
+    return Column(
+        modifier = Modifier.fillMaxSize().padding(24),
+        spacing = 16
+    ) {
+        // ── Header ────────────────────────────────────────────────────────────
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = "center", spacing = 12) {
+            Column(modifier = Modifier.flex(1), spacing = 2) {
+                Text(text = "Scramble Printer", style = TextStyle.titleLarge)
+                Text(
+                    text = folderName,
+                    style = TextStyle.bodySmall,
+                    color = Color.OnSurfaceVariant)
+            }
+            Button(
+                text = "Change Folder",
+                modifier = Modifier.color(Color.Primary).border("none").background("transparent"),
+                onClick = { vm.goBack() })
+        }
+
+        Divider(modifier = Modifier.fillMaxWidth())
+
+        // ── Scramble set list ─────────────────────────────────────────────────
+        Text(text = "FMC Scramble Sets", style = TextStyle.titleMedium)
+
+        if (fileSelections.length == 0) {
+            Text(
+                text = "No FMC scramble PDFs found.",
+                style = TextStyle.bodyMedium,
+                color = Color.OnSurfaceVariant)
+        }
+        // Direct index loop — avoids .zip() which is not a JS array method
+        for (i in indices) {
+            FileSelectionRow(index = i, sel = fileSelections[i], vm = vm)
+        }
+
+        Divider(modifier = Modifier.fillMaxWidth())
+
+        // ── Paper size ────────────────────────────────────────────────────────
+        Text(text = "Paper Size", style = TextStyle.titleMedium)
+        Row(spacing = 8, wrap = true) {
+            for (ps in PAPER_SIZES) {
+                Button(
+                    text = ps[1],
+                    modifier = if (paperSize == ps[0]) Modifier.background(Color.Primary).color(Color.OnPrimary).border("none").borderRadius(8).paddingVertical(8).paddingHorizontal(16) else Modifier.border("1px solid #0066cc").color(Color.Primary).borderRadius(8).paddingVertical(8).paddingHorizontal(16),
+                    onClick = { vm.setPaperSize(ps[0]) })
+            }
+        }
+
+        // ── Error ─────────────────────────────────────────────────────────────
+        if (error != null) {
+            Text(
+                text = error!!,
+                style = TextStyle.bodyMedium,
+                color = Color.Error)
+        }
+
+        Spacer(weight = 1)
+
+        // ── Print button ──────────────────────────────────────────────────────
+        Button(
+            text = if (isPrinting) "Printing… do not close this window" else "Print Selected",
+            enabled = !isPrinting && anySelected,
+            modifier = Modifier.fillMaxWidth().background(Color.Primary).color(Color.OnPrimary).border("none").borderRadius(8).paddingVertical(12),
+            onClick = { printTrigger.value = printTrigger.value + 1 })
+    }
+}

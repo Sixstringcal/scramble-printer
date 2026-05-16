@@ -1,0 +1,100 @@
+import @jalvin/runtime.buildList
+import @jalvin/runtime.listOf
+import @jalvin/runtime.mapOf
+import @jalvin/runtime.pairOf
+import @jalvin/runtime.delay
+import pdflib.PDFDocument
+import src.services.FolderService.getFile
+
+external class Blob(parts: Any, options: Any)
+
+fun getPaperDims(size: String): List<Double> {
+    return when (size) {
+        "a4"    -> listOf(595.276, 841.890)
+        "legal" -> listOf(612.0, 1008.0)
+        "a3"    -> listOf(841.890, 1190.551)
+        else    -> listOf(612.0, 792.0)   // letter (default)
+    }
+}
+
+// ─── Core print logic ────────────────────────────────────────────────────────
+// Builds a combined PDF from the selected entries:
+//   blank page → scramble pages → blank page   (repeated for each copy)
+// Then sends it to the printer via a hidden iframe.
+// The scramble content is never rendered in the app UI.
+
+suspend fun buildAndPrint(
+    selectedIndices: List<Int>,
+    copiesList: List<Int>,
+    paperSize: String
+) {
+    val dims = getPaperDims(paperSize)
+    val pageWidth = dims[0]
+    val pageHeight = dims[1]
+    val blankDims = listOf(pageWidth, pageHeight)
+
+    val printDoc = PDFDocument.create()
+
+    val n = selectedIndices.length
+    var i = 0
+    while (i < n) {
+        val idx = selectedIndices[i]
+        val numCopies = copiesList[i]
+
+        val file = getFile(idx)
+        val buffer = file.arrayBuffer()
+        val srcDoc = PDFDocument.load(buffer)
+        val pageCount = srcDoc.getPageCount() as Int
+
+        val pageIndices = buildList({ builder ->
+            var p = 0
+            while (p < pageCount) {
+                builder.add(p)
+                p = p + 1
+            }
+        })
+
+        var copy = 0
+        while (copy < numCopies) {
+            // Blank cover — printer sees this first, keeping scramble hidden
+            printDoc.addPage(blankDims)
+
+            val copiedPages = printDoc.copyPages(srcDoc, pageIndices)
+            for (page in copiedPages) {
+                printDoc.addPage(page)
+            }
+
+            // Blank back page
+            printDoc.addPage(blankDims)
+
+            copy = copy + 1
+        }
+    }
+
+    val pdfBytes = printDoc.save()
+    val blob = Blob(listOf(pdfBytes), mapOf(pairOf("type", "application/pdf")))
+    val url = URL.createObjectURL(blob)
+
+    sendToPrinter(url)
+}
+
+// ─── Print via hidden iframe ─────────────────────────────────────────────────
+// The iframe is invisible — the scramble content is never shown on screen.
+
+suspend fun sendToPrinter(url: String) {
+    val iframe = document.createElement("iframe")
+    iframe.style.cssText =
+        "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;"
+    document.body.appendChild(iframe)
+    iframe.src = url
+
+    // Allow the browser's PDF plugin time to load before printing
+    delay(4000)
+    val cw = iframe.contentWindow
+    if (cw != null) { cw.print() }
+
+    // Give the print dialog time to initialise before we clean up
+    delay(2000)
+    document.body.removeChild(iframe)
+    URL.revokeObjectURL(url)
+}

@@ -1,0 +1,26 @@
+{
+  "name": "scramble-printer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "jalvin dev",
+    "build": "jalvin build",
+    "check": "jalvin check",
+    "preview": "vite preview --host 127.0.0.1 --port 3000"
+  },
+  "dependencies": {
+    "@jalvin/runtime": "^2.0.45",
+    "@jalvin/ui": "^2.0.45",
+    "pdflib": "npm:pdf-lib@^1.17.1"
+  },
+  "overrides": {
+    "@jalvin/compiler": "^2.0.45"
+  },
+  "devDependencies": {
+    "@jalvin/cli": "^2.0.45",
+    "@jalvin/compiler": "^2.0.45",
+    "@jalvin/vite-plugin": "^2.0.45",
+    "vite": "^5.4.19"
+  }
+}

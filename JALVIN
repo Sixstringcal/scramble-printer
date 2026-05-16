@@ -1,0 +1,9 @@
+name = ScramblePrinter
+version = 1.0.0
+src = src
+out = dist
+emitDeclarations = false
+entryFile = src/main.jalvin
+entryComponent = ScrambleApp
+title = Scramble Printer
+port = 3000

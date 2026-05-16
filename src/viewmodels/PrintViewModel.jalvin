@@ -1,0 +1,135 @@
+import @jalvin/runtime.ViewModel
+import @jalvin/runtime.buildList
+import @jalvin/runtime.listOf
+import @jalvin/runtime.runCatchingAsync
+import src.models.FileSelection.createFileSelection
+import src.services.FolderService.openFolderPicker
+import src.services.FolderService.getFileName
+import src.services.FolderService.getFileDisplayName
+import src.services.PdfService.buildAndPrint
+
+class PrintViewModel : ViewModel() {
+    val screen = this.stateOf("upload")
+    val folderName = this.stateOf("")
+    val fileSelections = this.stateOf(listOf())
+    val paperSize = this.stateOf("letter")
+    val isPrinting = this.stateOf(false)
+    val error = this.stateOf(null)
+
+    // ─── Folder loading ───────────────────────────────────────────────────────
+
+    fun openFolder() {
+        openFolderPicker { count, folder ->
+            this.folderName.value = folder
+            this.fileSelections.value = buildList({ builder ->
+                var i = 0
+                while (i < count) {
+                    builder.add(createFileSelection(
+                        name = getFileName(i),
+                        displayName = getFileDisplayName(i),
+                        selected = true,
+                        copies = 1
+                    ))
+                    i = i + 1
+                }
+            })
+            if (count == 0) {
+                this.error.value = "No FMC scramble PDFs found in Printing/Scramble Sets/. " +
+                    "Please make sure you selected a valid competition folder."
+            } else {
+                this.error.value = null
+            }
+            if (count > 0) {
+                this.screen.value = "filelist"
+            }
+        }
+    }
+
+    fun goBack() {
+        this.screen.value = "upload"
+        this.fileSelections.value = listOf()
+        this.error.value = null
+    }
+
+    // ─── Selection state ──────────────────────────────────────────────────────
+
+    fun toggleSelection(index: Int) {
+        this.fileSelections.update { list ->
+            buildList({ builder ->
+                var i = 0
+                for (sel in list) {
+                    builder.add(if (i == index) sel.copy(selected = !sel.selected) else sel)
+                    i = i + 1
+                }
+            })
+        }
+    }
+
+    fun incrementCopies(index: Int) {
+        this.fileSelections.update { list ->
+            buildList({ builder ->
+                var i = 0
+                for (sel in list) {
+                    builder.add(if (i == index && sel.selected) sel.copy(copies = sel.copies + 1) else sel)
+                    i = i + 1
+                }
+            })
+        }
+    }
+
+    fun decrementCopies(index: Int) {
+        this.fileSelections.update { list ->
+            buildList({ builder ->
+                var i = 0
+                for (sel in list) {
+                    builder.add(if (i == index && sel.copies > 1) sel.copy(copies = sel.copies - 1) else sel)
+                    i = i + 1
+                }
+            })
+        }
+    }
+
+    fun setPaperSize(size: String) {
+        this.paperSize.value = size
+    }
+
+    // ─── Printing ─────────────────────────────────────────────────────────────
+
+    suspend fun print() {
+        this.isPrinting.value = true
+        this.error.value = null
+
+        val sels = this.fileSelections.value
+
+        val selectedIndices = buildList({ builder ->
+            var i = 0
+            for (sel in sels) {
+                if (sel.selected && sel.copies > 0) { builder.add(i) }
+                i = i + 1
+            }
+        })
+
+        val selectedCopies = buildList({ builder ->
+            for (sel in sels) {
+                if (sel.selected && sel.copies > 0) { builder.add(sel.copies) }
+            }
+        })
+
+        if (selectedIndices.isEmpty()) {
+            this.error.value = "Select at least one scramble set to print."
+            this.isPrinting.value = false
+            return
+        }
+
+        val result = runCatchingAsync {
+            buildAndPrint(selectedIndices, selectedCopies, this.paperSize.value)
+        }
+        result.onFailure {
+            this.error.value = it.message ?: "Printing failed. Please try again."
+        }
+
+        this.isPrinting.value = false
+    }
+}
+
+fun createPrintViewModel(): PrintViewModel = PrintViewModel()

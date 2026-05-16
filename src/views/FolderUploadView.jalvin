@@ -1,0 +1,80 @@
+import @jalvin/runtime.collectAsState
+import @jalvin/ui.Box
+import @jalvin/ui.Column
+import @jalvin/ui.Row
+import @jalvin/ui.Card
+import @jalvin/ui.Text
+import @jalvin/ui.Button
+import @jalvin/ui.Modifier
+import @jalvin/ui.Color
+import @jalvin/ui.TextStyle
+import src.viewmodels.PrintViewModel.PrintViewModel
+
+component fun FolderUploadView(vm: PrintViewModel) {
+    val error: String? = collectAsState(vm.error)
+    val folderName: String = collectAsState(vm.folderName)
+
+    return Box(modifier = Modifier.fillMaxSize(), contentAlignment = "center") {
+        Card(elevation = 2, modifier = Modifier.width(520)) {
+            Column(spacing = 24, horizontalAlignment = "center", modifier = Modifier.padding(40)) {
+
+                // Title
+                Text(
+                    text = "Scramble Printer",
+                    style = TextStyle.headlineLarge,
+                    color = Color.OnSurface)
+
+                Text(
+                    text = "Select a WCA competition folder to find and print FMC scramble PDFs.",
+                    style = TextStyle.bodyLarge,
+                    color = Color.OnSurfaceVariant)
+
+                // Privacy notice
+                Card(outlined = true, modifier = Modifier.fillMaxWidth()) {
+                    Column(spacing = 6, modifier = Modifier.padding(16)) {
+                        Text(
+                            text = "Privacy protection",
+                            style = TextStyle.titleSmall,
+                            color = Color.OnSurface)
+                        Text(
+                            text = "Files are processed entirely on your device. No scramble content " +
+                                "is shown on screen, and nothing is uploaded or stored.",
+                            style = TextStyle.bodySmall,
+                            color = Color.OnSurfaceVariant)
+                    }
+                }
+
+                // Instructions
+                Card(outlined = true, modifier = Modifier.fillMaxWidth()) {
+                    Column(spacing = 6, modifier = Modifier.padding(16)) {
+                        Text(
+                            text = "How to use",
+                            style = TextStyle.titleSmall,
+                            color = Color.OnSurface)
+                        Text(
+                            text = "1. Select the competition folder (e.g. \"Test scrambles 1 fmc bo1\").\n" +
+                                "2. Choose which scramble sets to print and how many copies.\n" +
+                                "3. Pick your paper size and click Print.\n" +
+                                "Blank pages are added before and after each set so you don't see the scrambles.",
+                            style = TextStyle.bodySmall,
+                            color = Color.OnSurfaceVariant)
+                    }
+                }
+
+                // Error
+                if (error != null) {
+                    Text(
+                        text = error!!,
+                        style = TextStyle.bodyMedium,
+                        color = Color.Error)
+                }
+
+                // Action button
+                Button(
+                    text = if (folderName != "") "Choose a Different Folder" else "Select Competition Folder",
+                    modifier = Modifier.fillMaxWidth().background(Color.Primary).color(Color.OnPrimary).border("none").borderRadius(8).paddingVertical(12),
+                    onClick = { vm.openFolder() })
+            }
+        }
+    }
+}

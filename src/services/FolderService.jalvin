@@ -1,0 +1,76 @@
+import @jalvin/runtime.buildList
+import @jalvin/runtime.listOf
+
+// ─── In-memory file store ────────────────────────────────────────────────────
+// All data lives only for the lifetime of this browser session.
+// Nothing is persisted or transmitted.
+
+var storedFiles: List<Any> = listOf()
+var storedNames: List<String> = listOf()
+var storedDisplayNames: List<String> = listOf()
+var storedFolderName: String = ""
+
+fun getFileCount(): Int = storedNames.size
+fun getFileName(index: Int): String = storedNames[index]
+fun getFileDisplayName(index: Int): String = storedDisplayNames[index]
+fun getFile(index: Int): Any = storedFiles[index]
+fun getFolderName(): String = storedFolderName
+
+// ─── Folder picker ───────────────────────────────────────────────────────────
+// Opens the native folder picker, filters for FMC scramble PDFs inside
+// Printing/Scramble Sets/, stores them in memory, then calls onDone with
+// (fileCount, folderName).
+
+fun openFolderPicker(onDone: (Int, String) -> Unit) {
+    val input = document.createElement("input")
+    input.type = "file"
+    input.webkitdirectory = true
+    input.multiple = true
+    input.style.display = "none"
+    document.body.appendChild(input)
+
+    input.onchange = {
+        val files = input.files
+        document.body.removeChild(input)
+
+        if (files != null && (files.length as Int) > 0) {
+            val firstPath = (files[0].webkitRelativePath ?: "") as String
+            val pathParts = firstPath.split("/")
+            storedFolderName = if (pathParts.length > 0) pathParts[0] else "Unknown folder"
+
+            console.log("[ScramblePrinter] Total files selected:", files.length)
+            val matched = buildList({ builder ->
+                var i = 0
+                while (i < (files.length as Int)) {
+                    val file = files[i]
+                    val relativePath = ((file.webkitRelativePath ?: file.name) as String).toLowerCase()
+                    val fileName = (file.name as String).toLowerCase()
+
+                    val inScrambleSets = relativePath.includes("/printing/") &&
+                        relativePath.includes("/scramble sets/")
+                    val isFmcScramble = fileName.includes("3x3x3 fewest moves")
+                    val isPdf = fileName.endsWith(".pdf")
+
+                    if (i < 5) {
+                        console.log("[ScramblePrinter] file path:", relativePath, "| inScrambleSets:", inScrambleSets, "| isFmcScramble:", isFmcScramble, "| isPdf:", isPdf)
+                    }
+                    if (inScrambleSets && isFmcScramble && isPdf) {
+                        builder.add(file)
+                    }
+                    i = i + 1
+                }
+            })
+            console.log("[ScramblePrinter] Matched files:", matched.length)
+
+            storedFiles = matched
+            storedNames = matched.map { it.name as String }
+            storedDisplayNames = matched.map { (it.name as String).slice(0, -4) }
+
+            onDone(storedFiles.length, storedFolderName)
+        } else {
+            onDone(0, "")
+        }
+    }
+
+    input.click()
+}

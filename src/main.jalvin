@@ -1,0 +1,28 @@
+import @jalvin/runtime.viewModel
+import @jalvin/runtime.collectAsState
+import @jalvin/ui.Scaffold
+import @jalvin/ui.Box
+import @jalvin/ui.Modifier
+import src.viewmodels.PrintViewModel.createPrintViewModel
+import src.views.FolderUploadView.FolderUploadView
+import src.views.FileListView.FileListView
+
+component fun ScrambleApp() {
+    val vm = viewModel("print") { createPrintViewModel() }
+    val screen: String = collectAsState(vm.screen)
+    console.log("[ScramblePrinter] ScrambleApp rendering, screen =", screen)
+
+    return Scaffold(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (screen == "upload") {
+                FolderUploadView(vm = vm)
+            } else {
+                FileListView(vm = vm)
+            }
+        }
+    }
+}
+
+fun main() {
+    println("Scramble Printer loaded")
+}
